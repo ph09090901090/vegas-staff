@@ -1,152 +1,103 @@
-# VEGAS RP — Staff Control
+# VEGAS RP · Painel de Gestão da Staff
 
-**Painel privado para dois supervisores (com a opção de autorizar outros cargos posteriormente).** Site estático compatível com **GitHub Pages**, dados e autenticação no **Supabase**. Identidade visual em preto, branco e cinza. Sem necessidade de pagar por uma VPS para hospedar os arquivos estáticos.
+Site estático pronto para GitHub Pages, com login por Discord e dados compartilhados no Supabase. Não precisa de `npm`, `Node.js` ou build para publicar.
 
-## Funcionalidades incluídas
+## Funcionalidades
 
-- **Login por e-mail e senha**; senha definida via convite e opção de recuperação.
-- **Permissões independentes dos cargos da cidade:** `owner` (tudo, inclusive convites), `gestor` (gerência operacional e relatórios) e `leitor` (consulta).
-- **Cadastro de staff:** nome, ID Discord, ID do jogo, cargo, setor, situação, data de entrada, observações.
-- **Hierarquia editável:** cargos iniciais Owner, Diretor Geral, Diretor, Sub Diretor, Supervisor G, Supervisor, ADM, MOD, SUP, Ajudante. Criar, renomear, mudar ordem.
-- **Relatórios individuais:** avaliações, ocorrências, advertências, elogios, promoções, acompanhamento, nota de 1 a 5, providências, autoria e data. Arquivo `.txt` individual ou exportação geral CSV.
-- **Anotações:** notas gerais ou vinculadas a membros, com opção de fixar.
-- **Tarefas:** título, descrição, responsável, prioridade, prazo, andamento e conclusão.
-- **Dashboard:** membros ativos, equipe cadastrada, relatórios de 30 dias, demandas pendentes, distribuição por cargos e registros recentes.
-- **Histórico automático:** movimentações de staff, relatórios, anotações, tarefas e hierarquia; convites e permissões geridos pela função segura.
-- **Desligamento sem perder o histórico:** arquiva o membro (status `desligado`); exclusão permanente é uma ação de owner para pessoas já desligadas.
-- **Exportação CSV** com proteção básica contra injeção de fórmulas ao abrir em planilhas.
-- **Design responsivo** para desktop e celular.
+- **Visão geral:** total de staffs, distribuição por cargo, indicadores da última rodada e atividades recentes.
+- **Equipe:** cadastro e edição de membros, com nome, ID Discord, cargo, área, status, data de entrada e observações. Exportação CSV.
+- **Relatórios a cada 30 minutos:** a Supervisão verifica manualmente, para cada staff, se está em call, se está na cidade e o que está fazendo. Histórico por rodada, observação livre, percentual verificado e finalização. O contador vale enquanto o navegador está aberto.
+- **Punições:** avisos, advertências, suspensões, desligamentos e revogação com histórico.
+- **Cursos:** Atendimento, Tickets, Comandos ADM, Conduta, Logs e cursos personalizados; marcação de conclusão.
+- **Ponto:** entrada e saída de turnos registradas manualmente pela Supervisão.
+- **Auditoria:** logs criados pelo banco quando qualquer registro é incluído, alterado ou excluído.
+- **Interface responsiva:** preto, branco e cinza; desktop e celular.
 
-### Arquivos importantes
+**Hierarquia:** Supervisor > Administrador > Moderador > Suporte > Estagiário. Não existem cargos Owner e Direção. Supervisor tem acesso total e gerencia outros Supervisores. Administrador consulta equipe e registros; os demais acessam apenas seus próprios dados. A segurança é implementada por políticas Row Level Security (RLS) no banco, não apenas por visibilidade de botões.
 
-```text
-vegas-staff-portal/
-├─ index.html              # Página inicial / interface
-├─ styles.css              # Visual
-├─ app.js                  # Funcionalidades do painel
-├─ config.js               # URL do Supabase + chave publicável
-├─ database.sql            # Tabelas, hierarquia, triggers, regras de acesso
-├─ .nojekyll               # GitHub Pages
-└─ supabase/
-   ├─ config.toml
-   └─ functions/
-      └─ manage-access/
-         └─ index.ts       # Convites/alterações de acesso (servidor seguro)
-```
+## 1. Testar agora (sem configurar nada)
 
-## Instalação passo a passo
+Para testar sem hospedagem, abra a pasta do projeto em um servidor local simples (por exemplo, **Live Server** no VS Code, ou `python -m http.server 8000`) e visite `http://localhost:8000`. Depois, clique em **Entrar na demonstração**. Como o projeto usa módulos JavaScript, abrir diretamente via `file://` pode ser bloqueado pelo navegador. Você também pode publicar no GitHub Pages e testar a demonstração lá.
 
-### 1. Criar um Supabase
+O modo de demonstração permite cadastrar staffs, preencher relatórios e testar o painel. Esses registros ficam no armazenamento **local do navegador**: não são compartilhados com outros usuários ou máquinas e não representam um banco de dados de produção. **Não use esta demonstração para controle real da equipe.** Ao configurar o Supabase, a demonstração deixa de aparecer; os dados locais não são migrados automaticamente.
 
-1. Entre em https://supabase.com/ e crie um projeto. Escolha uma senha forte para **o banco do projeto** (essa senha não vai para o GitHub).
-2. Vá em **SQL Editor → New query**. Copie **todo** o arquivo `database.sql` e execute. Isso cria as tabelas e a hierarquia inicial.
-3. Vá em **Authentication → Providers → Email** e **desative o cadastro público de novos usuários** (a interface pode variar; mantenha convites administrativos habilitados).
-4. Em **Authentication → Users → Add user → Send invitation**, envie convites para **o seu e-mail e o do LC**.
-5. Depois de criar os dois usuários, execute **somente o bloco BOOTSTRAP** do fim do arquivo `database.sql`, trocando os e-mails de exemplo pelos reais. Esse comando os registra como **owners do painel**. Verifique que a consulta retornou as duas contas:
+## 2. Configurar banco de dados Supabase
 
-```sql
-select email, display_name, access_role, active
-from public.profiles order by email;
-```
+1. Crie um projeto em https://supabase.com.
+2. Abra **SQL Editor** e execute integralmente `supabase/schema.sql` **uma vez**. É recomendável um projeto novo para evitar conflitos com tabelas ou políticas existentes.
+3. Descubra seu ID do Discord (ative **Modo Desenvolvedor** em Configurações Avançadas do Discord, depois clique com botão direito em seu perfil e escolha **Copiar ID do usuário**).
+4. Copie o conteúdo de `supabase/bootstrap.sql` para o editor SQL do Supabase, substitua **somente nessa consulta** `COLE_AQUI_SEU_ID_DISCORD` pelo seu Discord ID real e execute. Não inclua seu ID pessoal em commits públicos. Isso cadastra o **primeiro Supervisor**, obrigatório para liberar o painel. Não deixe esse valor fictício.
+5. No Supabase, em **Authentication → Providers → Discord**, ative o provedor. Crie a aplicação OAuth no https://discord.com/developers/applications, escolha sua aplicação, vá à seção OAuth2 e configure a **Redirect URL do Discord** como `https://SEU-PROJETO.supabase.co/auth/v1/callback` (o Supabase mostra o URL exato na configuração do provedor). Copie o **Client ID** e o **Client Secret** do Discord nos campos do Supabase. **Nunca coloque o Client Secret no site ou no GitHub.**
+6. No Supabase, em **Authentication → URL Configuration**, informe a URL pública do site no campo **Site URL** e adicione o endereço exato de publicação em **Redirect URLs**, inclusive a barra final quando aplicável, por exemplo `https://USUARIO.github.io/vegas-staff-site/`.
+7. Abra **Project Settings → API** (ou **Connect**, dependendo da versão). Copie o **Project URL** e a chave pública **anon / publishable** para `config.js`:
 
-> **Muito importante:** os dois owners só ganham acesso quando seus registros forem inseridos em `public.profiles`. Não existe e-mail ou senha mestre escondidos no código. Se a tela disser "sem acesso", confira a tabela.
+   ```js
+   window.VEGAS_CONFIG = {
+     supabaseUrl: 'https://SEU-PROJETO.supabase.co',
+     supabaseAnonKey: 'SUA_CHAVE_PUBLICA_ANON',
+   };
+   ```
 
-### 2. Conectar a interface ao Supabase
+   **NUNCA** use `service_role`, `sb_secret_` ou qualquer chave secreta no frontend. A chave `anon` / `publishable` é criada para uso público no navegador; a segurança vem das regras RLS que você executou no Supabase.
 
-1. No Supabase: **Project Settings → API Keys**, copie a **Project URL** (ou em Settings → Data API) e a chave **publishable** (ou `anon` no modelo legado).
-2. Abra `config.js` e substitua os placeholders:
+8. Depois disso, entre pelo botão **Entrar com Discord** usando a conta cadastrada como Supervisor.
 
-```js
-window.VEGAS_CONFIG = {
-  supabaseUrl: 'https://SEU-PROJETO.supabase.co',
-  supabaseAnonKey: 'sb_publishable_SUA_CHAVE_PUBLICAVEL',
-};
-```
+## 3. Publicar pelo GitHub
 
-**Nunca coloque a chave secreta `sb_secret_*`, a antiga `service_role`, a senha do projeto ou um token pessoal em `config.js`.** Essa página é pública por natureza, embora os dados permaneçam protegidos no servidor por autenticação e regras RLS.
+1. Crie um repositório no https://github.com, por exemplo `vegas-staff-site`.
+2. Envie **todos os arquivos e pastas deste projeto** para a raiz do repositório (`index.html`, `config.js`, `assets`, `.github`, `supabase`, `.nojekyll`, etc.).
+3. Na aba **Settings → Pages → Build and deployment**, selecione **GitHub Actions** como fonte de publicação.
+4. O workflow `.github/workflows/pages.yml` publica o site automaticamente em cada envio para a branch `main`.
+5. Use a URL exibida pelo GitHub Pages para configurar o endereço permitido no Supabase (passo 2.6). O site deve ser acessado via `https://`.
+6. Edite `config.js` e envie a alteração para o GitHub. O workflow publica a versão com integração real.
 
-### 3. Hospedar no GitHub Pages
+**Importante:** GitHub Pages hospeda apenas arquivos estáticos. Supabase guarda registros e autentica usuários; seu projeto não deve ser publicado colocando dados ou senhas no repositório.
 
-1. Crie um repositório no GitHub, por exemplo `vegas-staff`. **No GitHub Free, o repositório publicado via Pages normalmente precisa ser público.** É seguro publicar o código, mas não publique credenciais ou dados da staff no repositório.
-2. Envie os arquivos para a **raiz** do repositório (`index.html` e `config.js` precisam estar na raiz, não dentro de outra pasta).
-3. Entre em **Settings → Pages → Build and deployment → Deploy from a branch → `main` → `/(root)` → Save**.
-4. O endereço terá formato `https://SEU_USUARIO.github.io/vegas-staff/`. Abra e teste o login.
-5. No Supabase, em **Authentication → URL Configuration**, defina esse endereço como **Site URL** e inclua-o em **Redirect URLs**. Isso é indispensável para links de convite e recuperação de senha.
+## 4. Operação dos relatórios de 30 minutos
 
-> Publicar no GitHub Pages **não coloca o banco nem os dados no GitHub**. O navegador conversa com o Supabase, que autentica as contas e verifica as regras de segurança **em cada operação**.
+- Um Supervisor inicia a rodada do horário corrente (por exemplo, 18h00–18h30).
+- Preenche, para cada staff ativo: **Em call?**, **Na cidade?**, **O que está fazendo?** e uma observação opcional.
+- Clica em **Salvar relatório**, inclusive se ainda houver pendências. Campos não preenchidos ficam como **Não verificado**.
+- Quando os três campos de todos os staffs ativos estiverem preenchidos, pode clicar em **Finalizar rodada**.
+- A rodada fica no histórico. Supervisores podem corrigir dados; o banco audita as modificações.
+- O contador indica quando começa o próximo período. Não existe verificação automática de membros do Discord/FiveM, nem alerta quando a aba está fechada. Uma futura integração com bots/API pode disponibilizar esses recursos.
 
-### 4. Ativar convites futuros diretamente no site (Edge Function)
+### Detalhes técnicos e limitações
 
-As duas contas iniciais são criadas no passo 1. Para que o botão **Controle de acesso → Convidar usuário** funcione, implante a função `manage-access`. Ela usa credenciais do servidor, sem divulgar a chave secreta no navegador.
+- Banco: PostgreSQL do Supabase, RLS habilitada em todas as tabelas.
+- Identidade vinculada pela tabela `auth.identities` (provedor Discord), não pelo ID digitado no browser.
+- Um cadastro sem ID Discord pode existir no sistema, mas **não consegue entrar** até que um Supervisor cadastre o ID real.
+- A conta com status **Afastado** ou **Desligado** não acessa o painel.
+- O banco impede que o último Supervisor ativo seja afastado, desligado ou rebaixado.
+- Horários exibidos em `America/Sao_Paulo`; as rodadas são alinhadas em 00 e 30 minutos. Campos de atividade não são obtidos automaticamente do Discord ou FiveM.
+- A auditoria é escrita por triggers SQL. O frontend não pode inserir ou editar registros de auditoria.
+- A interface carrega os últimos 120 intervalos e as últimas 200 ações de auditoria, embora o banco preserve o histórico completo. Para consulta de histórico extenso, use o Supabase ou implemente paginação.
+- Evite registrar senhas, tokens e outras informações sensíveis em observações.
 
-No terminal, com Node.js instalado, dentro da pasta extraída:
-
-```bash
-npx supabase login
-npx supabase link --project-ref REF_DO_SEU_PROJETO
-npx supabase functions deploy manage-access
-```
-
-Configure no Supabase (**Edge Functions → Secrets**) o segredo:
+### Estrutura
 
 ```text
-SITE_URL=https://SEU_USUARIO.github.io/vegas-staff/
+vegas-staff-site/
+├── index.html
+├── config.js
+├── assets/
+│   ├── app.js
+│   ├── api.js
+│   ├── styles.css
+│   └── favicon.svg
+├── supabase/
+│   ├── schema.sql
+│   └── bootstrap.sql
+├── .github/workflows/pages.yml
+├── .nojekyll
+└── README.md
 ```
 
-Ou, via terminal:
+## Próxima etapa
 
-```bash
-npx supabase secrets set SITE_URL=https://SEU_USUARIO.github.io/vegas-staff/
-```
+Cadastre a lista real de staffs no painel (ou envie os dados para preparar uma importação em lote). Nenhum funcionário fictício foi incluído nos registros de produção.
 
-> `SITE_URL` não é senha; é a URL HTTPS autorizada para direcionar convites. Garanta que essa mesma URL aparece na lista de **Redirect URLs**. A função exige uma sessão válida e confirma no banco que o solicitante é `owner`. Não altere `verify_jwt = true` em `supabase/config.toml`.
 
-### 5. Testar em ambiente local (opcional)
+## Equipe inicial (18 membros)
 
-Na pasta dos arquivos, com Python instalado:
-
-```bash
-python -m http.server 8000
-```
-
-Abra `http://localhost:8000`. Se for testar links de recuperação nessa URL, inclua `http://localhost:8000/**` nas URLs de redirecionamento do Supabase.
-
-## Regras de acesso
-
-| Permissão do site | Visualiza registros | Edita staff, relatórios, tarefas, notas, cargos | Convida ou bloqueia usuários |
-|---|---|---|---|
-| **Owner** (você e LC) | Sim | Sim | Sim |
-| **Gestor** | Sim | Sim | Não |
-| **Leitor** | Sim | Não | Não |
-
-O cargo **Owner da hierarquia da cidade** é apenas um cargo da staff. Ele **não** garante acesso ao site. As permissões do site só mudam por decisão de um `owner` já autorizado no controle de acesso.
-
-## Limitações e cuidados operacionais
-
-- **Este pacote é o código pronto, não um site já publicado.** Sem projeto Supabase, duas contas e configuração, a tela inicial exibirá "Painel pronto para configurar".
-- **Dados reais não foram preenchidos:** a base começa vazia, exceto pelos 10 cargos iniciais.
-- **Hospedagem não equivale a privacidade da página:** qualquer pessoa consegue abrir a URL de login do Pages; só contas autorizadas conseguem consultar ou editar os registros. RLS é obrigatório.
-- **O histórico de operações registra tipo, item e autor**, mas não mantém versões completas e imutáveis do conteúdo de relatórios; para auditoria formal e prova de alterações, complemente com backups e uma trilha de versões.
-- A importação da interface carrega o cliente Supabase por CDN; ela precisa de internet para funcionar.
-- Atualizações feitas pelo outro supervisor **aparecem após clicar "Atualizar" ou recarregar a página**. Não há colaboração em tempo real via websocket nesta versão.
-- O Supabase pode aplicar **limites de uso e políticas de inatividade** conforme o plano. Consulte seu plano para limites e política de retenção antes de operar exclusivamente nele.
-- Se um usuário perder acesso, as regras do banco rejeitam novas leituras e escritas. Um usuário já conectado pode manter registros antigos na tela até atualizar/recarregar, por isso evite compartilhar a tela e mantenha os computadores protegidos.
-- **Backup:** exporte CSV periodicamente e use backups do PostgreSQL do projeto. CSV de staff e relatórios é útil, mas **não substitui** um backup de todas as tabelas.
-- E-mails de convite podem ser limitados por regras de envio do Supabase. Para produção com muitos convites, configure SMTP próprio.
-
-## Solução de problemas
-
-- **Tela "Painel pronto para configurar"**: `config.js` ainda contém placeholders.
-- **"Esta conta ainda não possui acesso"**: execute o bloco BOOTSTRAP para os dois e-mails ou habilite a conta via Controle de acesso.
-- **Erro de tabela / "permission denied"**: rode `database.sql` integralmente e verifique se o usuário está ativo em `public.profiles`.
-- **Login funciona, mas convite falha**: verifique deploy da Edge Function, segredo `SITE_URL`, autorização de Redirect URLs e logs da função.
-- **Convite leva para lugar errado**: ajuste Site URL e Redirect URLs no Supabase.
-- **Erro de ID do Discord duplicado**: o banco impede duplicidade de IDs do Discord e de jogo.
-- **Erro ao excluir cargo**: transfira a staff desse cargo antes de excluí-lo. Para excluir um cargo vazio, use o botão de lixeira disponível para os owners.
-
-## Fontes técnicas
-
-- [GitHub Pages — configurando a origem da publicação](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
-- [Supabase — convite de usuários](https://supabase.com/docs/guides/auth/users)
-- [Supabase — RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)
-- [Supabase — segurança de Edge Functions](https://supabase.com/docs/guides/functions/auth)
+A demonstração já abre com 6 Administradores, 3 Moderadores e 9 Suportes. Nenhum Supervisor ou Estagiário foi fornecido. Em produção, execute `supabase/staff_inicial.sql` após `supabase/schema.sql` e configure o Supervisor no `bootstrap.sql`. As áreas refletem apenas as informações disponíveis e devem ser conferidas. Se já abriu a demonstração antes, limpe os dados locais da demonstração para carregar a lista inicial.
